@@ -56,7 +56,7 @@ import java.util.regex.Pattern;
 
 /**
  * AbstractBeanDefinitionParser
- *
+ * 实现BeanDefinitionParser，
  * @export
  */
 public class DubboBeanDefinitionParser implements BeanDefinitionParser {
@@ -73,6 +73,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
 
     @SuppressWarnings("unchecked")
     private static BeanDefinition parse(Element element, ParserContext parserContext, Class<?> beanClass, boolean required) {
+        // bean标签
         RootBeanDefinition beanDefinition = new RootBeanDefinition();
         beanDefinition.setBeanClass(beanClass);
         beanDefinition.setLazyInit(false);
