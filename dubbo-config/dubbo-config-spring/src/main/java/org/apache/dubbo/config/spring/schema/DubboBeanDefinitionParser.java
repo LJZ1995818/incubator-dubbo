@@ -73,10 +73,17 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
 
     @SuppressWarnings("unchecked")
     private static BeanDefinition parse(Element element, ParserContext parserContext, Class<?> beanClass, boolean required) {
-        // bean标签
         RootBeanDefinition beanDefinition = new RootBeanDefinition();
+        // 设置beanDefinition相关的的Class对象
         beanDefinition.setBeanClass(beanClass);
+        // 设置懒加载为false，提前全部加载
         beanDefinition.setLazyInit(false);
+        /**
+         * 获取该节点对应的id，如果id不存在，或者required=true（是否自动设置id）
+         * 获取name，如果name不存在，并且当前为ProtocolConfig标签
+         * 参考https://dubbo.gitbooks.io/dubbo-user-book/references/xml/dubbo-protocol.html
+         * 第一行id，如果不填则与name一样，重复的话就加序号
+         */
         String id = element.getAttribute("id");
         if ((id == null || id.length() == 0) && required) {
             String generatedBeanName = element.getAttribute("name");
@@ -98,11 +105,17 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         }
         if (id != null && id.length() > 0) {
             if (parserContext.getRegistry().containsBeanDefinition(id)) {
+                // id如果不为空的话，校验spring是否已经注入这个bean了
                 throw new IllegalStateException("Duplicate spring bean id " + id);
             }
+            // TODO 了解一下spring注入bean的过程
             parserContext.getRegistry().registerBeanDefinition(id, beanDefinition);
             beanDefinition.getPropertyValues().addPropertyValue("id", id);
         }
+        /**
+         * 如果是protocal标签,遍历当前paser所有的已经注册过的bean name
+         * 获取以前的protocol属性，如果属性不为空，并且协议名称和当前协议一致，添加到bean容器的属性中
+         */
         if (ProtocolConfig.class.equals(beanClass)) {
             for (String name : parserContext.getRegistry().getBeanDefinitionNames()) {
                 BeanDefinition definition = parserContext.getRegistry().getBeanDefinition(name);
@@ -114,9 +127,13 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                     }
                 }
             }
+            /**
+             * 如果当前是service标签，获取其class属性，这个class属性很奇怪，官方文档没有，看样子是和ref一样的作用，用于加入实现类
+             */
         } else if (ServiceBean.class.equals(beanClass)) {
             String className = element.getAttribute("class");
             if (className != null && className.length() > 0) {
+                // 将当前实现类实例化存入beanDefination
                 RootBeanDefinition classDefinition = new RootBeanDefinition();
                 classDefinition.setBeanClass(ReflectUtils.forName(className));
                 classDefinition.setLazyInit(false);
@@ -300,6 +317,9 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         }
     }
 
+    /**
+     *
+     */
     private static void parseProperties(NodeList nodeList, RootBeanDefinition beanDefinition) {
         if (nodeList != null && nodeList.getLength() > 0) {
             for (int i = 0; i < nodeList.getLength(); i++) {
