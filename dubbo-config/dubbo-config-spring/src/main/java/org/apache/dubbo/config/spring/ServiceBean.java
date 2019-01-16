@@ -138,6 +138,10 @@ public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean
         }
     }
 
+    /**
+     * 判断是否延迟暴露，TODO 返回值是什么意思，按道理delay=-1是在spring初始化完成后再暴露
+     * @return
+     */
     private boolean isDelay() {
         Integer delay = getDelay();
         ProviderConfig provider = getProvider();

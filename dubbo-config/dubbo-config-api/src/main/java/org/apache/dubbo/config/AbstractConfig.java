@@ -89,6 +89,10 @@ public abstract class AbstractConfig implements Serializable {
         return value;
     }
 
+    /**
+     * 将启动参数和properties拼接set进去
+     * @param config
+     */
     protected static void appendProperties(AbstractConfig config) {
         if (config == null) {
             return;
@@ -152,7 +156,7 @@ public abstract class AbstractConfig implements Serializable {
                             }
                         }
                     }
-                    /** */
+                    /** 调用setter方法设置***Config中的属性值*/
                     if (value != null && value.length() > 0) {
                         method.invoke(config, convertPrimitive(method.getParameterTypes()[0], value));
                     }
@@ -184,11 +188,17 @@ public abstract class AbstractConfig implements Serializable {
         appendParameters(parameters, config, null);
     }
 
+    /**
+     * 传入的***Config对象解析为URL放入map
+     */
     @SuppressWarnings("unchecked")
     protected static void appendParameters(Map<String, String> parameters, Object config, String prefix) {
         if (config == null) {
             return;
         }
+        /**
+         * 筛选出全部的getter方法，并且只有一个参数，返回值是基本数据类或者包装类或者String
+         */
         Method[] methods = config.getClass().getMethods();
         for (Method method : methods) {
             try {
@@ -198,10 +208,12 @@ public abstract class AbstractConfig implements Serializable {
                         && Modifier.isPublic(method.getModifiers())
                         && method.getParameterTypes().length == 0
                         && isPrimitive(method.getReturnType())) {
+                    /** 获取当前方法上面的parameter如果当前返回对象是Object或者，这个parameter上面的属性设置为excluded（忽略拼接）*/
                     Parameter parameter = method.getAnnotation(Parameter.class);
                     if (method.getReturnType() == Object.class || parameter != null && parameter.excluded()) {
                         continue;
                     }
+                    /** 获取属性名称，小细节，get开头截取三位，is开头截取两位*/
                     int i = name.startsWith("get") ? 3 : 2;
                     String prop = StringUtils.camelToSplitName(name.substring(i, i + 1).toLowerCase() + name.substring(i + 1), ".");
                     String key;
@@ -210,12 +222,15 @@ public abstract class AbstractConfig implements Serializable {
                     } else {
                         key = prop;
                     }
+                    /** 反射获取对应的属性的值*/
                     Object value = method.invoke(config);
                     String str = String.valueOf(value).trim();
                     if (value != null && str.length() > 0) {
+                        /** 因为是url格式，如果需要转义，先编码*/
                         if (parameter != null && parameter.escaped()) {
                             str = URL.encode(str);
                         }
+                        /** 如果拼接默认属性*/
                         if (parameter != null && parameter.append()) {
                             String pre = parameters.get(Constants.DEFAULT_KEY + "." + key);
                             if (pre != null && pre.length() > 0) {
@@ -231,8 +246,10 @@ public abstract class AbstractConfig implements Serializable {
                         }
                         parameters.put(key, str);
                     } else if (parameter != null && parameter.required()) {
+                        /** 走到这里说明value没有设置，而这个value声明为必填*/
                         throw new IllegalStateException(config.getClass().getSimpleName() + "." + key + " == null");
                     }
+                    /** 方法名是getParameters的话 TODO 这里或许是自定义属性？*/
                 } else if ("getParameters".equals(name)
                         && Modifier.isPublic(method.getModifiers())
                         && method.getParameterTypes().length == 0

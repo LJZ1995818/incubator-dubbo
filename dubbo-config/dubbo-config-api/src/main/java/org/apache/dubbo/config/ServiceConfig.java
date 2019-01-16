@@ -231,7 +231,9 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         if (interfaceName == null || interfaceName.length() == 0) {
             throw new IllegalStateException("<dubbo:service interface=\"\" /> interface not allow null!");
         }
+        /** 将启动参数和properties通过反射设置到对应的***Config中 */
         checkDefault();
+        /** 好多重复啊，provider里面啥都有，说白了就是为了将对应属性设置进**Config中 */
         if (provider != null) {
             if (application == null) {
                 application = provider.getApplication();
@@ -265,22 +267,29 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                 monitor = application.getMonitor();
             }
         }
+        /** 泛化调用 如果当前ref属性实现了GenericService调用接口，将generic置为true*/
         if (ref instanceof GenericService) {
             interfaceClass = GenericService.class;
             if (StringUtils.isEmpty(generic)) {
                 generic = Boolean.TRUE.toString();
             }
         } else {
+            /** 没有实现泛化调用接口GenericService，根据反射拿到对应的interface实例*/
             try {
                 interfaceClass = Class.forName(interfaceName, true, Thread.currentThread()
                         .getContextClassLoader());
             } catch (ClassNotFoundException e) {
                 throw new IllegalStateException(e.getMessage(), e);
             }
+            /** 校验该方法是否实现了该接口*/
             checkInterfaceAndMethods(interfaceClass, methods);
             checkRef();
             generic = Boolean.FALSE.toString();
         }
+        /**
+         * 本地代理，看文档说是可以让provider在consumer搞事情
+         * 把provider的部分逻辑放在consumer，consumer实际上在自己本地搞了一个provider代理，感觉没啥用
+         */
         if (local != null) {
             if ("true".equals(local)) {
                 local = interfaceName + "Local";
@@ -322,6 +331,9 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         ApplicationModel.initProviderModel(getUniqueServiceName(), providerModel);
     }
 
+    /**
+     * 校验当前实现类有没有实现该接口
+     */
     private void checkRef() {
         // reference should not be null, and is the implementation of the given interface
         if (ref == null) {
@@ -354,6 +366,9 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         unexported = true;
     }
 
+    /**
+     * 根据多注册中心进行暴露啦
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void doExportUrls() {
         List<URL> registryURLs = loadRegistries(true);
@@ -707,6 +722,9 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         appendProperties(provider);
     }
 
+    /**
+     * 协议默认dubbo
+     */
     private void checkProtocol() {
         if ((protocols == null || protocols.isEmpty())
                 && provider != null) {
