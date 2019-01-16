@@ -43,17 +43,26 @@ import java.util.Map;
 
 /**
  * ServiceFactoryBean
- *
+ * 服务相关，多层继承好多好多配置变量
  * @export
  */
 public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean, DisposableBean, ApplicationContextAware, ApplicationListener<ContextRefreshedEvent>, BeanNameAware {
 
     private static final long serialVersionUID = 213195494150089726L;
 
+    /**
+     * spring上下文
+     */
     private static transient ApplicationContext SPRING_CONTEXT;
 
+    /**
+     * service的注解
+     */
     private final transient Service service;
 
+    /**
+     * 这俩是一样的啊。。
+     */
     private transient ApplicationContext applicationContext;
 
     private transient String beanName;

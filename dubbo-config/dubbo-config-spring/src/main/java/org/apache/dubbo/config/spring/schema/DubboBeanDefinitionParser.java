@@ -140,22 +140,36 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                 parseProperties(element.getChildNodes(), classDefinition);
                 beanDefinition.getPropertyValues().addPropertyValue("ref", new BeanDefinitionHolder(classDefinition, id + "Impl"));
             }
+        /**
+         * 解析标签内迁入的标签，比如privider中嵌入service
+         */
         } else if (ProviderConfig.class.equals(beanClass)) {
             parseNested(element, parserContext, ServiceBean.class, true, "service", "provider", id, beanDefinition);
         } else if (ConsumerConfig.class.equals(beanClass)) {
             parseNested(element, parserContext, ReferenceBean.class, false, "reference", "consumer", id, beanDefinition);
         }
+        /**
+         * props用于手机这个类的全部属性
+         */
         Set<String> props = new HashSet<String>();
         ManagedMap parameters = null;
+        /**
+         * 对当前bean所有的方法进行遍历，筛选出所有的set方法 set开头、public修饰、只有一个入参
+         */
         for (Method setter : beanClass.getMethods()) {
             String name = setter.getName();
             if (name.length() > 3 && name.startsWith("set")
                     && Modifier.isPublic(setter.getModifiers())
                     && setter.getParameterTypes().length == 1) {
                 Class<?> type = setter.getParameterTypes()[0];
+                // 获取set后面的内容，首字母小写 如setName() 得到的就是name
                 String property = StringUtils.camelToSplitName(name.substring(3, 4).toLowerCase() + name.substring(4), "-");
                 props.add(property);
                 Method getter = null;
+                /**
+                 * 根据属性名反推getter方法，这里有一个小细节的地方，如果抛出NoSuchMethodException的话，
+                 * 考虑是不是boolean类型的getter方法，因为基本数据类型boolean的getter方法是is开头的
+                 */
                 try {
                     getter = beanClass.getMethod("get" + name.substring(3), new Class<?>[0]);
                 } catch (NoSuchMethodException e) {
@@ -164,11 +178,18 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                     } catch (NoSuchMethodException e2) {
                     }
                 }
+                /**
+                 * 判断getter方法
+                 * 1、是否为null
+                 * 2、修饰符是否是public的
+                 * 3、返回值是不是getter方法的入参
+                 */
                 if (getter == null
                         || !Modifier.isPublic(getter.getModifiers())
                         || !type.equals(getter.getReturnType())) {
                     continue;
                 }
+                /** 标签内的内容包含parameters、methods、arguments 涉及递归解析*/
                 if ("parameters".equals(property)) {
                     parameters = parseParameters(element.getChildNodes(), beanDefinition);
                 } else if ("methods".equals(property)) {
@@ -177,13 +198,18 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                     parseArguments(id, element.getChildNodes(), beanDefinition, parserContext);
                 } else {
                     String value = element.getAttribute(property);
+                    /** 标签内的value*/
                     if (value != null) {
                         value = value.trim();
                         if (value.length() > 0) {
+                            /** 如果是标签内的属性包括registry的话，对N/A做特殊处理，表示不想注册到任何注册中心*/
                             if ("registry".equals(property) && RegistryConfig.NO_AVAILABLE.equalsIgnoreCase(value)) {
                                 RegistryConfig registryConfig = new RegistryConfig();
                                 registryConfig.setAddress(RegistryConfig.NO_AVAILABLE);
                                 beanDefinition.getPropertyValues().addPropertyValue(property, registryConfig);
+                                /**
+                                 * 多个注册中心、提供者、协议之间是用逗号的，如果都是只设置了一个的情况
+                                 */
                             } else if ("registry".equals(property) && value.indexOf(',') != -1) {
                                 parseMultiRef("registries", value, beanDefinition, parserContext);
                             } else if ("provider".equals(property) && value.indexOf(',') != -1) {
@@ -192,6 +218,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                                 parseMultiRef("protocols", value, beanDefinition, parserContext);
                             } else {
                                 Object reference;
+                                /** 如果是包装类数据类型，类似于timeout这种是包装类数据类型，这里是兼容旧版本xsd*/
                                 if (isPrimitive(type)) {
                                     if ("async".equals(property) && "false".equals(value)
                                             || "timeout".equals(property) && "0".equals(value)
@@ -203,6 +230,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                                         value = null;
                                     }
                                     reference = value;
+                                    // TODO SPI没看
                                 } else if ("protocol".equals(property)
                                         && ExtensionLoader.getExtensionLoader(Protocol.class).hasExtension(value)
                                         && (!parserContext.getRegistry().containsBeanDefinition(value)
@@ -214,18 +242,21 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                                     ProtocolConfig protocol = new ProtocolConfig();
                                     protocol.setName(value);
                                     reference = protocol;
+                                    // TODO 方法返回后拦截
                                 } else if ("onreturn".equals(property)) {
                                     int index = value.lastIndexOf(".");
                                     String returnRef = value.substring(0, index);
                                     String returnMethod = value.substring(index + 1);
                                     reference = new RuntimeBeanReference(returnRef);
                                     beanDefinition.getPropertyValues().addPropertyValue("onreturnMethod", returnMethod);
+                                    // TODO 方法有异常拦截
                                 } else if ("onthrow".equals(property)) {
                                     int index = value.lastIndexOf(".");
                                     String throwRef = value.substring(0, index);
                                     String throwMethod = value.substring(index + 1);
                                     reference = new RuntimeBeanReference(throwRef);
                                     beanDefinition.getPropertyValues().addPropertyValue("onthrowMethod", throwMethod);
+                                    // TODO 方法执行前拦截
                                 } else if ("oninvoke".equals(property)) {
                                     int index = value.lastIndexOf(".");
                                     String invokeRef = value.substring(0, index);
@@ -233,6 +264,11 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                                     reference = new RuntimeBeanReference(invokeRef);
                                     beanDefinition.getPropertyValues().addPropertyValue("oninvokeMethod", invokeRefMethod);
                                 } else {
+                                    /**
+                                     *  如果当前属性是ref，必须是单例的，为了节省效率，不用每一次调用都创建bean
+                                     *  我们使用dubbo希望用户像调用本地service一样调用服务，本地不使用成员变量的话，都是无状态的
+                                     *  也是为了避免多例bean导致的的一些问题，如服务暴露的幂等（猜测，不确认）
+                                     */
                                     if ("ref".equals(property) && parserContext.getRegistry().containsBeanDefinition(value)) {
                                         BeanDefinition refBean = parserContext.getRegistry().getBeanDefinition(value);
                                         if (!refBean.isSingleton()) {
@@ -248,6 +284,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                 }
             }
         }
+        // 将
         NamedNodeMap attributes = element.getAttributes();
         int len = attributes.getLength();
         for (int i = 0; i < len; i++) {
@@ -267,6 +304,11 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         return beanDefinition;
     }
 
+    /**
+     * 是不是当前包装
+     * @param cls
+     * @return
+     */
     private static boolean isPrimitive(Class<?> cls) {
         return cls.isPrimitive() || cls == Boolean.class || cls == Byte.class
                 || cls == Character.class || cls == Short.class || cls == Integer.class
