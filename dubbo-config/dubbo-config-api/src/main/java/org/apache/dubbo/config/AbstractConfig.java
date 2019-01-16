@@ -95,7 +95,9 @@ public abstract class AbstractConfig implements Serializable {
         }
         String prefix = "dubbo." + getTagName(config.getClass()) + ".";
         Method[] methods = config.getClass().getMethods();
-        /** 遍历所有的setter方法，基本数据类型或包装类，有且只有一个入参*/
+        /** 遍历所有的setter方法，基本数据类型或包装类，有且只有一个入参，dubbo的这种多继承设计好难受啊，
+         * 注定是有很多无用的方法遍历，好在只是服务暴露阶段，效率无所谓了
+         */
         for (Method method : methods) {
             try {
                 String name = method.getName();
@@ -106,11 +108,13 @@ public abstract class AbstractConfig implements Serializable {
                     /** 如果id不为空，也就是说在dubbo标签解析的时候，将id，set了进去*/
                     if (config.getId() != null && config.getId().length() > 0) {
                         String pn = prefix + config.getId() + "." + property;
+                        /** 优先设置系统变量，也就是-D启动参数*/
                         value = System.getProperty(pn);
                         if (!StringUtils.isBlank(value)) {
                             logger.info("Use System Property " + pn + " to config dubbo");
                         }
                     }
+                    /** 前缀加id的试过了，再试试不加id的，看起来像是兼容性逻辑*/
                     if (value == null || value.length() == 0) {
                         String pn = prefix + property;
                         value = System.getProperty(pn);
@@ -118,6 +122,7 @@ public abstract class AbstractConfig implements Serializable {
                             logger.info("Use System Property " + pn + " to config dubbo");
                         }
                     }
+                    /** 到这了value如果不为null，说明已经通过启动变量设置过了*/
                     if (value == null || value.length() == 0) {
                         Method getter;
                         try {
@@ -147,6 +152,7 @@ public abstract class AbstractConfig implements Serializable {
                             }
                         }
                     }
+                    /** */
                     if (value != null && value.length() > 0) {
                         method.invoke(config, convertPrimitive(method.getParameterTypes()[0], value));
                     }

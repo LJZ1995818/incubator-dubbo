@@ -206,6 +206,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         }
 
         if (delay != null && delay > 0) {
+            /** 延迟暴露的话，开启一个调度线程池，delayExportExecutor，时间单位是毫秒*/
             delayExportExecutor.schedule(new Runnable() {
                 @Override
                 public void run() {
@@ -218,12 +219,14 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
     }
 
     protected synchronized void doExport() {
+        /** 如果不支持暴露或者已经暴露过，不会再继续执行*/
         if (unexported) {
             throw new IllegalStateException("Already unexported!");
         }
         if (exported) {
             return;
         }
+        /** 设置变量已经暴露*/
         exported = true;
         if (interfaceName == null || interfaceName.length() == 0) {
             throw new IllegalStateException("<dubbo:service interface=\"\" /> interface not allow null!");
