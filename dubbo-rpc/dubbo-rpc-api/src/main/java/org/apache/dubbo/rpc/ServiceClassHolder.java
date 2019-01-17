@@ -17,7 +17,7 @@
 package org.apache.dubbo.rpc;
 
 /**
- * TODO this is just a workaround for rest protocol, and now we just ensure it works in the most common dubbo usages
+ * TODO THIS IS JUST A WORKAROUND FOR REST PROTOCOL, AND NOW WE JUST ENSURE IT WORKS IN THE MOST COMMON DUBBO USAGES
  *
  */
 public class ServiceClassHolder {

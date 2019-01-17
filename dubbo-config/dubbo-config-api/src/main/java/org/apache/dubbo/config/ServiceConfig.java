@@ -460,7 +460,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                 }
             } // end of methods for
         }
-        /** 泛化调用*/
+        /** 泛化实现，泛化功能还是很强大的，consumer调用provider时*/
         if (ProtocolUtils.isGeneric(generic)) {
             map.put(Constants.GENERIC_KEY, generic);
             map.put(Constants.METHODS_KEY, Constants.ANY_VALUE);
@@ -470,7 +470,6 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
             if (revision != null && revision.length() > 0) {
                 map.put("revision", revision);
             }
-
             String[] methods = Wrapper.getWrapper(interfaceClass).getMethodNames();
             if (methods.length == 0) {
                 logger.warn("NO method found in service interface " + interfaceClass.getName());
@@ -479,24 +478,29 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                 map.put(Constants.METHODS_KEY, StringUtils.join(new HashSet<String>(Arrays.asList(methods)), ","));
             }
         }
+        /** 令牌验证，防止consumer偷偷地绕过注册中心访问provider*/
         if (!ConfigUtils.isEmpty(token)) {
+            /** 如果是true或者default就生成一个uuid作为token，如果用户自己设置了就用用户自己的*/
             if (ConfigUtils.isDefault(token)) {
                 map.put(Constants.TOKEN_KEY, UUID.randomUUID().toString());
             } else {
                 map.put(Constants.TOKEN_KEY, token);
             }
         }
+        /** 如果是injvm协议，就不注册了*/
         if (Constants.LOCAL_PROTOCOL.equals(protocolConfig.getName())) {
             protocolConfig.setRegister(false);
             map.put("notify", "false");
         }
         // export service
+        /** url中的上下文路径*/
         String contextPath = protocolConfig.getContextpath();
         if ((contextPath == null || contextPath.length() == 0) && provider != null) {
             contextPath = provider.getContextpath();
         }
-
+        /** 寻找本地host*/
         String host = this.findConfigedHosts(protocolConfig, registryURLs, map);
+        /** 寻找本地端口*/
         Integer port = this.findConfigedPorts(protocolConfig, name, map);
         URL url = new URL(name, host, port, (contextPath == null || contextPath.length() == 0 ? "" : contextPath + "/") + path, map);
 
@@ -508,13 +512,16 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
 
         String scope = url.getParameter(Constants.SCOPE_KEY);
         // don't export when none is configured
+        /** 配置了SCOPE_NONE就不暴露了*/
         if (!Constants.SCOPE_NONE.equalsIgnoreCase(scope)) {
 
             // export to local if the config is not remote (export to remote only when config is remote)
+            /** 如果没有配置远程暴露协议，就先本地暴露*/
             if (!Constants.SCOPE_REMOTE.equalsIgnoreCase(scope)) {
                 exportLocal(url);
             }
             // export to remote if the config is not local (export to local only when config is local)
+            /** 如果不是本地暴露*/
             if (!Constants.SCOPE_LOCAL.equalsIgnoreCase(scope)) {
                 if (logger.isInfoEnabled()) {
                     logger.info("Export dubbo service " + interfaceClass.getName() + " to url " + url);
@@ -522,6 +529,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                 if (registryURLs != null && !registryURLs.isEmpty()) {
                     for (URL registryURL : registryURLs) {
                         url = url.addParameterIfAbsent(Constants.DYNAMIC_KEY, registryURL.getParameter(Constants.DYNAMIC_KEY));
+                        /** 监控中心*/
                         URL monitorUrl = loadMonitor(registryURL);
                         if (monitorUrl != null) {
                             url = url.addParameterAndEncoded(Constants.MONITOR_KEY, monitorUrl.toFullString());
@@ -556,6 +564,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void exportLocal(URL url) {
+        /** 如果不是injvm*/
         if (!Constants.LOCAL_PROTOCOL.equalsIgnoreCase(url.getProtocol())) {
             URL local = URL.valueOf(url.toFullString())
                     .setProtocol(Constants.LOCAL_PROTOCOL)
@@ -577,7 +586,13 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
      * Register & bind IP address for service provider, can be configured separately.
      * Configuration priority: environment variables -> java system properties -> host property in config file ->
      * /etc/hosts -> default network address -> first available network address
-     *
+     * 优先级：从高到低
+     * 1、系统环境变量
+     * 2、java系统properties
+     * 3、配置的dubbo属性
+     * 4、/etc/hosts
+     * 5、127.0.0.1
+     * 6、第一个可用的地址
      * @param protocolConfig
      * @param registryURLs
      * @param map
@@ -585,18 +600,25 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
      */
     private String findConfigedHosts(ProtocolConfig protocolConfig, List<URL> registryURLs, Map<String, String> map) {
         boolean anyhost = false;
-
+        /**从环境变量中获取host，优先级最高*/
         String hostToBind = getValueFromConfig(protocolConfig, Constants.DUBBO_IP_TO_BIND);
+        /**
+         * 判断是不是非法的本地ip
+         * 1、忽略大小写的localhost
+         * 2、0.0.0.0
+         * 3、127.x.x.x
+         */
         if (hostToBind != null && hostToBind.length() > 0 && isInvalidLocalHost(hostToBind)) {
             throw new IllegalArgumentException("Specified invalid bind ip from property:" + Constants.DUBBO_IP_TO_BIND + ", value:" + hostToBind);
         }
-
         // if bind ip is not found in environment, keep looking up
+        /** 如果环境变量为空 看看用户配置了没有*/
         if (hostToBind == null || hostToBind.length() == 0) {
             hostToBind = protocolConfig.getHost();
             if (provider != null && (hostToBind == null || hostToBind.length() == 0)) {
                 hostToBind = provider.getHost();
             }
+            /** 如果用户provider设置的host非法*/
             if (isInvalidLocalHost(hostToBind)) {
                 anyhost = true;
                 try {
@@ -664,22 +686,28 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
     private Integer findConfigedPorts(ProtocolConfig protocolConfig, String name, Map<String, String> map) {
         Integer portToBind = null;
 
+        /** 查看环境变量或者properties*/
         // parse bind port from environment
         String port = getValueFromConfig(protocolConfig, Constants.DUBBO_PORT_TO_BIND);
+        /** 校验端口是否可以被转化为Integer，是否是0-65535*/
         portToBind = parsePort(port);
 
         // if there's no bind port found from environment, keep looking up.
+        /** 环境变量或者properties为空的话，找config是否配置了端口*/
         if (portToBind == null) {
             portToBind = protocolConfig.getPort();
             if (provider != null && (portToBind == null || portToBind == 0)) {
                 portToBind = provider.getPort();
             }
+            /** spi寻找默认端口？*/
             final int defaultPort = ExtensionLoader.getExtensionLoader(Protocol.class).getExtension(name).getDefaultPort();
             if (portToBind == null || portToBind == 0) {
                 portToBind = defaultPort;
             }
+            /** 随机找个端口？*/
             if (portToBind == null || portToBind <= 0) {
                 portToBind = getRandomPort(name);
+                /** 随机找个端口还是空，获取一个可用端口后添加到缓存*/
                 if (portToBind == null || portToBind < 0) {
                     portToBind = getAvailablePort(defaultPort);
                     putRandomPort(name, portToBind);
