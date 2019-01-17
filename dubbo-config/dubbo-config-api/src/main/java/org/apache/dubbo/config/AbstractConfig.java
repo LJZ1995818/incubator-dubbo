@@ -249,7 +249,7 @@ public abstract class AbstractConfig implements Serializable {
                         /** 走到这里说明value没有设置，而这个value声明为必填*/
                         throw new IllegalStateException(config.getClass().getSimpleName() + "." + key + " == null");
                     }
-                    /** 方法名是getParameters的话 TODO 这里或许是自定义属性？*/
+                    /** 方法名是getParameters的话 TODO 这里或许是自定义参数？*/
                 } else if ("getParameters".equals(name)
                         && Modifier.isPublic(method.getModifiers())
                         && method.getParameterTypes().length == 0

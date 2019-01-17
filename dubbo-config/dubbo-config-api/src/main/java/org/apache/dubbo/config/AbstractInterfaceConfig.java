@@ -165,7 +165,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 
     /**
      * 加载注册中心，构建成URL然后返回
-     * @param provider
+     * @param provider 是否是provider
      * @return
      */
     protected List<URL> loadRegistries(boolean provider) {
@@ -183,7 +183,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
                 if (sysaddress != null && sysaddress.length() > 0) {
                     address = sysaddress;
                 }
-                /** 如果注册中心地址不为空，并且不是N/A（不注册到注册中心，忽略大小写）*/
+                /** 如果注册中心地址不为空，并且不是N/A（不注册到注册中心，忽略大小写）将参数放入map中，方便后续放入url*/
                 if (address.length() > 0 && !RegistryConfig.NO_AVAILABLE.equalsIgnoreCase(address)) {
                     Map<String, String> map = new HashMap<String, String>();
                     appendParameters(map, application);
@@ -191,9 +191,11 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
                     map.put("path", RegistryService.class.getName());
                     map.put("dubbo", Version.getProtocolVersion());
                     map.put(Constants.TIMESTAMP_KEY, String.valueOf(System.currentTimeMillis()));
+                    /** 获取线程id*/
                     if (ConfigUtils.getPid() > 0) {
                         map.put(Constants.PID_KEY, String.valueOf(ConfigUtils.getPid()));
                     }
+                    /** 为url设置默认协议*/
                     if (!map.containsKey("protocol")) {
                         if (ExtensionLoader.getExtensionLoader(RegistryFactory.class).hasExtension("remote")) {
                             map.put("protocol", "remote");
@@ -205,6 +207,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
                     for (URL url : urls) {
                         url = url.addParameter(Constants.REGISTRY_KEY, url.getProtocol());
                         url = url.setProtocol(Constants.REGISTRY_PROTOCOL);
+                        /** 如果是provider的话 register不能为空，如果不是provider，订阅对应的值不能为空*/
                         if ((provider && url.getParameter(Constants.REGISTER_KEY, true))
                                 || (!provider && url.getParameter(Constants.SUBSCRIBE_KEY, true))) {
                             registryList.add(url);
