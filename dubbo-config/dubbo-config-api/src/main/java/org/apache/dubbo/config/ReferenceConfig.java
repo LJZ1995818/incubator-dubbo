@@ -185,33 +185,49 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
     }
 
     private void init() {
+        /** 是否已经初始化过，避免重复初始化*/
         if (initialized) {
             return;
         }
+        /** 设置已初始化*/
         initialized = true;
+        /** 接口名称不能为空*/
         if (interfaceName == null || interfaceName.length() == 0) {
             throw new IllegalStateException("<dubbo:reference interface=\"\" /> interface not allow null!");
         }
         // get consumer's global configuration
+        /** 拼接环境变量参数和properties参数*/
         checkDefault();
         appendProperties(this);
+        /** 如果是泛化调用，设置标识*/
         if (getGeneric() == null && getConsumer() != null) {
             setGeneric(getConsumer().getGeneric());
         }
         if (ProtocolUtils.isGeneric(getGeneric())) {
             interfaceClass = GenericService.class;
         } else {
+            /** 如果不是泛化调用，将接口实例化*/
             try {
                 interfaceClass = Class.forName(interfaceName, true, Thread.currentThread()
                         .getContextClassLoader());
             } catch (ClassNotFoundException e) {
                 throw new IllegalStateException(e.getMessage(), e);
             }
+            /** 校验接口和方法，判断该接口是否包含该方法*/
             checkInterfaceAndMethods(interfaceClass, methods);
         }
+        /**
+         * 处理直连提供者
+         * 使用方法：java -Dcom.alibaba.xxx.XxxService=dubbo://localhost:20890
+         * 如果比较多的话也可以java -Ddubbo.resolve.file=xxx.properties 将映射关系放在properties中，用-Ddubbo.resolve.file指定路径
+         * 也可以使用dubbo:refrence中的url参数直连
+         * 优先级为-D参数 > properties方式 > refrence标签方式
+         */
         String resolve = System.getProperty(interfaceName);
         String resolveFile = null;
+        /** 启动参数没有找到其直连关系*/
         if (resolve == null || resolve.length() == 0) {
+            /** 检索dubbo.resolve.file下的dubbo-resolve.properties文件查找映射关系*/
             resolveFile = System.getProperty("dubbo.resolve.file");
             if (resolveFile == null || resolveFile.length() == 0) {
                 File userResolveFile = new File(new File(System.getProperty("user.home")), "dubbo-resolve.properties");
@@ -219,6 +235,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                     resolveFile = userResolveFile.getAbsolutePath();
                 }
             }
+            /**如果有的话加载properties并解析*/
             if (resolveFile != null && resolveFile.length() > 0) {
                 Properties properties = new Properties();
                 FileInputStream fis = null;
@@ -237,6 +254,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                 resolve = properties.getProperty(interfaceName);
             }
         }
+        /** 只是打日志，标识使用了什么方式进行直连*/
         if (resolve != null && resolve.length() > 0) {
             url = resolve;
             if (logger.isWarnEnabled()) {
@@ -247,6 +265,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                 }
             }
         }
+        /** 初始化各config*/
         if (consumer != null) {
             if (application == null) {
                 application = consumer.getApplication();
@@ -282,6 +301,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         Map<String, String> map = new HashMap<String, String>();
         resolveAsyncInterface(interfaceClass, map);
         Map<Object, Object> attributes = new HashMap<Object, Object>();
+        /** 设置side为consumer、版本号、时间戳、进程id*/
         map.put(Constants.SIDE_KEY, Constants.CONSUMER_SIDE);
         map.put(Constants.DUBBO_VERSION_KEY, Version.getProtocolVersion());
         map.put(Constants.TIMESTAMP_KEY, String.valueOf(System.currentTimeMillis()));
@@ -302,6 +322,7 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
                 map.put("methods", StringUtils.join(new HashSet<String>(Arrays.asList(methods)), ","));
             }
         }
+        /** 构建map，拼接url参数*/
         map.put(Constants.INTERFACE_KEY, interfaceName);
         appendParameters(map, application);
         appendParameters(map, module);
@@ -438,6 +459,11 @@ public class ReferenceConfig<T> extends AbstractReferenceConfig {
         appendProperties(consumer);
     }
 
+    /**
+     * TODO 异步调用注解？
+     * @param interfaceClass
+     * @param map
+     */
     private void resolveAsyncInterface(Class<?> interfaceClass, Map<String, String> map) {
         AsyncFor annotation = interfaceClass.getAnnotation(AsyncFor.class);
         if (annotation == null) return;
