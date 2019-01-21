@@ -600,11 +600,18 @@ public class ExtensionLoader<T> {
         return extensionClasses;
     }
 
+    /**
+     * 从指定目录加载资源
+     * @param extensionClasses
+     * @param dir
+     * @param type
+     */
     private void loadDirectory(Map<String, Class<?>> extensionClasses, String dir, String type) {
         String fileName = dir + type;
         try {
             Enumeration<java.net.URL> urls;
             ClassLoader classLoader = findClassLoader();
+            /** 从指定路径加载properties，加载出来以后封装的是Enumeration*/
             if (classLoader != null) {
                 urls = classLoader.getResources(fileName);
             } else {
@@ -613,6 +620,7 @@ public class ExtensionLoader<T> {
             if (urls != null) {
                 while (urls.hasMoreElements()) {
                     java.net.URL resourceURL = urls.nextElement();
+                    /** */
                     loadResource(extensionClasses, classLoader, resourceURL);
                 }
             }
@@ -624,10 +632,12 @@ public class ExtensionLoader<T> {
 
     private void loadResource(Map<String, Class<?>> extensionClasses, ClassLoader classLoader, java.net.URL resourceURL) {
         try {
+            /** 字符编码utf-8*/
             BufferedReader reader = new BufferedReader(new InputStreamReader(resourceURL.openStream(), "utf-8"));
             try {
                 String line;
                 while ((line = reader.readLine()) != null) {
+                    /** 忽略注释*/
                     final int ci = line.indexOf('#');
                     if (ci >= 0) line = line.substring(0, ci);
                     line = line.trim();
@@ -640,6 +650,7 @@ public class ExtensionLoader<T> {
                                 line = line.substring(i + 1).trim();
                             }
                             if (line.length() > 0) {
+                                /** 加载配置的spi到内存中*/
                                 loadClass(extensionClasses, resourceURL, Class.forName(line, true, classLoader), name);
                             }
                         } catch (Throwable t) {
@@ -657,20 +668,33 @@ public class ExtensionLoader<T> {
         }
     }
 
+    /**
+     * 将从properties中解析出来的值
+     * @param extensionClasses
+     * @param resourceURL
+     * @param clazz
+     * @param name
+     * @throws NoSuchMethodException
+     */
     private void loadClass(Map<String, Class<?>> extensionClasses, java.net.URL resourceURL, Class<?> clazz, String name) throws NoSuchMethodException {
+        /** TODO 如果加载出来没有实现这个接口*/
         if (!type.isAssignableFrom(clazz)) {
             throw new IllegalStateException("Error when load extension class(interface: " +
                     type + ", class line: " + clazz.getName() + "), class "
                     + clazz.getName() + "is not subtype of interface.");
         }
+        /** 如果标记了自动激活注解 @Adaptive */
         if (clazz.isAnnotationPresent(Adaptive.class)) {
+            /** 将其赋值到自动激活注解变量*/
             if (cachedAdaptiveClass == null) {
                 cachedAdaptiveClass = clazz;
+                /** @Adaptive 只能有一个*/
             } else if (!cachedAdaptiveClass.equals(clazz)) {
                 throw new IllegalStateException("More than 1 adaptive class found: "
                         + cachedAdaptiveClass.getClass().getName()
                         + ", " + clazz.getClass().getName());
             }
+            /** TODO 装饰器？没看懂要干啥*/
         } else if (isWrapperClass(clazz)) {
             Set<Class<?>> wrappers = cachedWrapperClasses;
             if (wrappers == null) {
@@ -679,7 +703,7 @@ public class ExtensionLoader<T> {
             }
             wrappers.add(clazz);
         } else {
-            /** 判断有没有无参的构造方法*/
+            /** 判断有没有无参的构造方法，如果没有的话会抛NoSuchMethodException异常的*/
             clazz.getConstructor();
             if (name == null || name.length() == 0) {
                 name = findAnnotationName(clazz);
@@ -687,6 +711,7 @@ public class ExtensionLoader<T> {
                     throw new IllegalStateException("No such extension name for the class " + clazz.getName() + " in the config " + resourceURL);
                 }
             }
+            /** name之间可以用逗号分隔，可以起多个名字？*/
             String[] names = NAME_SEPARATOR.split(name);
             if (names != null && names.length > 0) {
                 Activate activate = clazz.getAnnotation(Activate.class);
@@ -694,6 +719,7 @@ public class ExtensionLoader<T> {
                     cachedActivates.put(names[0], activate);
                 }
                 for (String n : names) {
+                    /** spi的集合，key为class,value为别名 */
                     if (!cachedNames.containsKey(clazz)) {
                         cachedNames.put(clazz, n);
                     }
@@ -708,6 +734,14 @@ public class ExtensionLoader<T> {
         }
     }
 
+    /**
+     * 判断clazz的构造方法，是否包含另一个类type类型的参数，如果
+     * public Clazz(Type type) {
+     *
+     * }
+     * @param clazz
+     * @return
+     */
     private boolean isWrapperClass(Class<?> clazz) {
         try {
             clazz.getConstructor(type);
@@ -719,7 +753,9 @@ public class ExtensionLoader<T> {
 
     @SuppressWarnings("deprecation")
     private String findAnnotationName(Class<?> clazz) {
+        /** 判断有没有被@Extension标明 TODO @Extension是干啥的*/
         org.apache.dubbo.common.Extension extension = clazz.getAnnotation(org.apache.dubbo.common.Extension.class);
+        /** 如果为空的话就自动生成一个名字*/
         if (extension == null) {
             String name = clazz.getSimpleName();
             if (name.endsWith(type.getSimpleName())) {

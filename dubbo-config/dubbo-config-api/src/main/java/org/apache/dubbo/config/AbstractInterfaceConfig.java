@@ -327,7 +327,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
             }
         }
 
-        /** 恕我直言，我觉得mock生产上也没啥用，有问题就报错啊，调用接口超时有failover啊，
+        /** 恕我直言，我觉得mock生产上也没啥用，有问题就报错啊，调用接口有failover啊，
          * 虽然生产不开重试，但是只要下游幂等，就可以重新调，下游有问题可以服务降级，熔断，自己搞一套逻辑处理mock是什么情况，
          * 用在测试环境调用第三方渠道写一套mock逻辑还有点用处
          */
