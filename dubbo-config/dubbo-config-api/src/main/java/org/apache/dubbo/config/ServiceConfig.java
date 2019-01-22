@@ -516,12 +516,12 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
         if (!Constants.SCOPE_NONE.equalsIgnoreCase(scope)) {
 
             // export to local if the config is not remote (export to remote only when config is remote)
-            /** 如果没有配置远程暴露协议，就先本地暴露*/
+            /** 如果没有配置远程暴露协议，就先本地暴露，本地远程都暴露*/
             if (!Constants.SCOPE_REMOTE.equalsIgnoreCase(scope)) {
                 exportLocal(url);
             }
             // export to remote if the config is not local (export to local only when config is local)
-            /** 如果不是本地暴露*/
+            /** 如果不是本地暴露，也就是说远程暴露 remote*/
             if (!Constants.SCOPE_LOCAL.equalsIgnoreCase(scope)) {
                 if (logger.isInfoEnabled()) {
                     logger.info("Export dubbo service " + interfaceClass.getName() + " to url " + url);
