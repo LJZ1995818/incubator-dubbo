@@ -80,8 +80,6 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
         beanDefinition.setLazyInit(false);
         /**
          * 获取该节点对应的id，如果id不存在，或者required=true（是否自动设置id）
-         * 获取name，如果name不存在，并且当前为ProtocolConfig标签
-         * 参考https://dubbo.gitbooks.io/dubbo-user-book/references/xml/dubbo-protocol.html
          * 第一行id，如果不填则与name一样，重复的话就加序号
          */
         String id = element.getAttribute("id");
@@ -108,7 +106,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                 // id如果不为空的话，校验spring是否已经注入这个bean了
                 throw new IllegalStateException("Duplicate spring bean id " + id);
             }
-            // TODO 了解一下spring注入bean的过程
+            // TODO 后续需要复习一下spring注入bean的过程，忘光了
             parserContext.getRegistry().registerBeanDefinition(id, beanDefinition);
             beanDefinition.getPropertyValues().addPropertyValue("id", id);
         }
@@ -149,7 +147,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
             parseNested(element, parserContext, ReferenceBean.class, false, "reference", "consumer", id, beanDefinition);
         }
         /**
-         * props用于手机这个类的全部属性
+         * props用于收集这个类的全部属性
          */
         Set<String> props = new HashSet<String>();
         ManagedMap parameters = null;
@@ -230,7 +228,7 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                                         value = null;
                                     }
                                     reference = value;
-                                    // TODO SPI没看
+                                    // TODO SPI
                                 } else if ("protocol".equals(property)
                                         && ExtensionLoader.getExtensionLoader(Protocol.class).hasExtension(value)
                                         && (!parserContext.getRegistry().containsBeanDefinition(value)
@@ -265,15 +263,15 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                                     beanDefinition.getPropertyValues().addPropertyValue("oninvokeMethod", invokeRefMethod);
                                 } else {
                                     /**
-                                     *  如果当前属性是ref，必须是单例的，为了节省效率，不用每一次调用都创建bean
-                                     *  我们使用dubbo希望用户像调用本地service一样调用服务，本地不使用成员变量的话，都是无状态的
-                                     *  也是为了避免多例bean导致的的一些问题，如服务暴露的幂等（猜测，不确认）
+                                     *  1、如果当前属性是ref，必须是单例的，为了节省效率，不用每一次调用都创建bean
+                                     *  2、我们使用dubbo希望用户像调用本地service一样调用服务，本地不使用成员变量的话，都是无状态的
+                                     *  3、也是为了避免多例bean导致的的一些问题，如服务暴露的幂等（猜测）
                                      */
                                     if ("ref".equals(property) && parserContext.getRegistry().containsBeanDefinition(value)) {
-                                        BeanDefinition refBean = parserContext.getRegistry().getBeanDefinition(value);
-                                        if (!refBean.isSingleton()) {
-                                            throw new IllegalStateException("The exported service ref " + value + " must be singleton! Please set the " + value + " bean scope to singleton, eg: <bean id=\"" + value + "\" scope=\"singleton\" ...>");
-                                        }
+                                            BeanDefinition refBean = parserContext.getRegistry().getBeanDefinition(value);
+                                            if (!refBean.isSingleton()) {
+                                                throw new IllegalStateException("The exported service ref " + value + " must be singleton! Please set the " + value + " bean scope to singleton, eg: <bean id=\"" + value + "\" scope=\"singleton\" ...>");
+                                            }
                                     }
                                     reference = new RuntimeBeanReference(value);
                                 }
@@ -284,7 +282,6 @@ public class DubboBeanDefinitionParser implements BeanDefinitionParser {
                 }
             }
         }
-        // 将
         NamedNodeMap attributes = element.getAttributes();
         int len = attributes.getLength();
         for (int i = 0; i < len; i++) {
